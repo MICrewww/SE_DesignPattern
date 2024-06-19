@@ -1,0 +1,200 @@
+from abc import ABC, abstractmethod
+
+# IconFamily class
+class IconFamily:
+    def __init__(self, icons):
+        self.icons = icons
+
+    def load_icon_family(self):
+        return f"Loading icon family with icons: {self.icons}"
+
+
+# Abstract Factory class
+class StyleFactory(ABC):
+    def __init__(self, icon_family):
+        self.icon_family = icon_family
+
+    @abstractmethod
+    def create_style(self):
+        pass
+
+
+# Concrete TreeFactory class
+class TreeFactory(StyleFactory):
+    def create_style(self):
+        return TreeStyle(self.icon_family)
+
+
+# Concrete RectangleFactory class
+class RectangleFactory(StyleFactory):
+    def create_style(self):
+        return RectangleStyle(self.icon_family)
+
+
+# Abstract Style class
+class Style(ABC):
+    def __init__(self, icon_family):
+        self.icon_family = icon_family
+        self.root = None
+
+    @abstractmethod
+    def build_structure(self, data):
+        pass
+
+    def draw(self):
+        if self.root:
+            visitor = DrawVisitor()
+            iterator = NodeIterator(self.root)
+            for node in iterator:
+                node.accept(visitor)
+
+
+# Concrete TreeStyle class
+class TreeStyle(Style):
+    def build_structure(self, data):
+        self.root = TreeNode("root", self.icon_family.icons['container'])
+        self._build_children(self.root, data)
+
+    def _build_children(self, parent, data):
+        for key, value in data.items():
+            if isinstance(value, dict):
+                child = TreeNode(key, self.icon_family.icons['container'])
+                parent.add_child(child)
+                self._build_children(child, value)
+            else:
+                child = TreeNode(key, self.icon_family.icons['leaf'])
+                parent.add_child(child)
+
+
+# Concrete RectangleStyle class
+class RectangleStyle(Style):
+    def build_structure(self, data):
+        self.root = RectangleNode("root", self.icon_family.icons['container'])
+        self._build_children(self.root, data)
+
+    def _build_children(self, parent, data):
+        for key, value in data.items():
+            if isinstance(value, dict):
+                child = RectangleNode(key, self.icon_family.icons['container'])
+                parent.add_child(child)
+                self._build_children(child, value)
+            else:
+                child = RectangleNode(key, self.icon_family.icons['leaf'])
+                parent.add_child(child)
+
+
+# Node class for tree structure
+class Node(ABC):
+    def __init__(self, name, icon):
+        self.name = name
+        self.icon = icon
+        self.children = []
+
+    def add_child(self, child):
+        self.children.append(child)
+
+    @abstractmethod
+    def accept(self, visitor):
+        pass
+
+
+class TreeNode(Node):
+    def accept(self, visitor):
+        visitor.visit_tree_node(self)
+
+
+class RectangleNode(Node):
+    def accept(self, visitor):
+        visitor.visit_rectangle_node(self)
+
+
+# 实现访问者模式，处理节点的绘制
+class DrawVisitor:
+    def __init__(self):
+        self.prefix = ""
+
+    def visit_tree_node(self, node):
+        print(self.prefix + "├─ " + node.icon + " " + node.name)
+        self.prefix += "│  "
+        for child in node.children:
+            child.accept(self)
+        self.prefix = self.prefix[:-3]
+
+    def visit_rectangle_node(self, node):
+        print(self.prefix + "┌─ " + node.icon + " " + node.name)
+        self.prefix += "│  "
+        for child in node.children:
+            child.accept(self)
+        self.prefix = self.prefix[:-3]
+
+
+# 实现迭代器模式，遍历节点
+class NodeIterator:
+    def __init__(self, root):
+        self.stack = [root]
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        if not self.stack:
+            raise StopIteration
+        node = self.stack.pop()
+        self.stack.extend(reversed(node.children))
+        return node
+
+
+# Builder class for creating styles
+class JsonBuilder:
+    def __init__(self, factory, data):
+        self.factory = factory
+        self.data = data
+        self.style = None
+
+    def build_product(self):
+        self.style = self.factory.create_style()
+        self.style.build_structure(self.data)
+
+    def draw_product(self):
+        if self.style:
+            self.style.draw()
+
+
+# FunnyJsonExplorer class
+class FunnyJsonExplorer:
+    def __init__(self, builder):
+        self.builder = builder
+
+    def load(self):
+        self.builder.build_product()
+
+    def show(self):
+        self.builder.draw_product()
+
+
+# Example usage
+if __name__ == "__main__":
+    icon_family_1 = {'container': '♢', 'leaf': '♤'}
+    icon_family_2 = {'container': '♡', 'leaf': '♧'}
+
+    data = {
+        "root": {
+            "child1": {
+                "child1_1": {},
+                "child1_2": {}
+            },
+            "child2": {}
+        }
+    }
+
+    # Using TreeFactory
+    builder = JsonBuilder(TreeFactory(IconFamily(icon_family_1)), data)
+    explorer = FunnyJsonExplorer(builder)
+    explorer.load()
+    explorer.show()
+
+    # Using RectangleFactory
+    builder = JsonBuilder(RectangleFactory(IconFamily(icon_family_2)), data)
+    explorer = FunnyJsonExplorer(builder)
+    explorer.load()
+    explorer.show()
